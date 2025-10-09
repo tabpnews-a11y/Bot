@@ -1,0 +1,15 @@
+{
+  "name": "telegram-join-gate-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot that forces channel join before allowing username lookup (Telegraf)",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.14.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
